@@ -1,5 +1,7 @@
 package brain;
 
+import brain.Meal.mealTypes;
+
 
 public class Predictor {
 	private enum sugarLevel { TOO_LOW, PERFECT, TOO_HIGH };
@@ -31,7 +33,11 @@ public class Predictor {
 				return 999;
 			}
 		}
-		return (int)Math.round(totalCarbCount / carbsPerUnit + (meal.getLevelBefore() - 110) / DatabaseConnector.getSugarPerUnit() );
+		System.out.println(totalCarbCount);
+		System.out.println(carbsPerUnit);
+		double mealCorrection = DatabaseConnector.getMealCorrection(meal.getMealType());
+		System.out.println(mealCorrection);
+		return (int)Math.round((totalCarbCount) / (carbsPerUnit + mealCorrection) + Math.max(0, (meal.getLevelBefore() - 110) / DatabaseConnector.getSugarPerUnit()) );
 	}
 
 	public boolean updatePredictor(){
@@ -133,8 +139,49 @@ public class Predictor {
 			DatabaseConnector.updateSugarPerUnit(Math.max(1, (sugarPerUnitScore * sugarPerUnitScore +  newSugarPerUnit)/(double)(sugarPerUnitScore + 1)));
 			DatabaseConnector.updateSugarPerUnitScore(sugarPerUnitScore + 1);
 		}
+		
+		
+		//Update Meal Corrections
+		if(meal.getMealId() % 1 == 0){
+			this.updateMealCorrections();
+		}
 
 		return true;
+	}
+	
+	
+	//Run this every x meals. (ie 100 meals)
+	private void updateMealCorrections(){
+		System.out.println("Starting");
+		double breakfastCarbError = DatabaseConnector.getAverageCarbError(mealTypes.BREAKFAST);
+		double lunchCarbError = DatabaseConnector.getAverageCarbError(mealTypes.LUNCH);
+		double dinnerCarbError = DatabaseConnector.getAverageCarbError(mealTypes.DINNER);
+		double mean = (breakfastCarbError + lunchCarbError + dinnerCarbError) / 3;
+		double carbsPerUnit = DatabaseConnector.getCarbsPerUnit();
+		System.out.println("LunchError " + lunchCarbError);
+		System.out.println("Mean  " + mean);
+		
+		double temp = mean - breakfastCarbError;
+		double newBreakfastCarbError = (Math.abs(temp) > carbsPerUnit) ? temp : 0.0;
+		double newBreakfastCarbCorrection = (DatabaseConnector.getMealCorrection(mealTypes.BREAKFAST) + newBreakfastCarbError) / 2;
+		DatabaseConnector.updateMealCorrection(mealTypes.BREAKFAST, newBreakfastCarbCorrection);
+		System.out.println("newBreakfastCarbError  " + newBreakfastCarbError);
+		System.out.println("newBreakfastCarbCorrection  " + newBreakfastCarbCorrection);
+		
+		temp = mean - lunchCarbError;
+		double newLunchCarbError = ((Math.abs(temp) > carbsPerUnit)) ? temp : 0.0;
+		newLunchCarbError = newLunchCarbError / meal.getUnitsTaken();
+		double newLunchCarbCorrection = (DatabaseConnector.getMealCorrection(mealTypes.LUNCH) + newLunchCarbError) / 2;
+		DatabaseConnector.updateMealCorrection(mealTypes.LUNCH, newLunchCarbCorrection);
+		System.out.println("newLunchCarbError  " + newLunchCarbError);
+		System.out.println("newLunchCarbCorrection  " + newLunchCarbCorrection);
+		
+		temp = mean - dinnerCarbError;
+		double newDinnerCarbError = ((Math.abs(temp) > carbsPerUnit)) ? temp : 0.0;
+		double newDinnerCarbCorrection = (DatabaseConnector.getMealCorrection(mealTypes.DINNER) + newDinnerCarbError) / 2;
+		DatabaseConnector.updateMealCorrection(mealTypes.DINNER, newDinnerCarbCorrection);
+		System.out.println("newDinnerCarbError  " + newDinnerCarbError);
+		System.out.println("newDinnerCarbCorrection  " + newDinnerCarbCorrection);
 	}
 
 	private double getModifierPercent(double totalScore, double totalCarbs, int score, double carbs){
@@ -145,8 +192,6 @@ public class Predictor {
 		scorePart = (scorePart == 0) ? 1 : scorePart;
 		double carbPart = carbs / totalCarbs;
 		return (1*scorePart + 1*carbPart)/2;
-
-
 	}
 
 	private sugarLevel mealSuccess(){

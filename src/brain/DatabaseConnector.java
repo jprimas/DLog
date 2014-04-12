@@ -7,6 +7,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 
+import brain.Meal.mealTypes;
+
 public class DatabaseConnector {
 
 	private static Connection connection;
@@ -24,7 +26,7 @@ public class DatabaseConnector {
 		}
 	}
 
-	public static boolean saveMeal(int totalCarbs, int levelBefore, int unitsTaken, int unitsPredicted){
+	public static boolean saveMeal(int totalCarbs, int levelBefore, int unitsTaken, int unitsPredicted, mealTypes type){
 		if(connection == null){
 			if(!connectDB()){
 				return false;
@@ -32,13 +34,15 @@ public class DatabaseConnector {
 		}
 		try {
 			String insertMealString = "INSERT INTO meals" +
-					"(total_carbs, level_before, units_taken, units_predicted)" +
-					" VALUES (?,?,?,?)";
+					"(total_carbs, level_before, units_taken, units_predicted, meal_type)" +
+					" VALUES (?,?,?,?,?)";
 			PreparedStatement updateMeal = connection.prepareStatement(insertMealString);
 			updateMeal.setInt(1, totalCarbs);
 			updateMeal.setInt(2, levelBefore);
 			updateMeal.setInt(3, unitsTaken);
 			updateMeal.setInt(4, unitsPredicted);
+			System.out.println("saving ordinal: " + type.ordinal());
+			updateMeal.setInt(5, type.ordinal());
 			updateMeal.executeUpdate();
 			return true;
 		} catch (SQLException e) {
@@ -59,7 +63,7 @@ public class DatabaseConnector {
 			while(rs.next()){
 				meal = new Meal(rs.getInt("id"), rs.getInt("total_carbs"), rs.getInt("level_before"),
 						rs.getInt("level_after"), rs.getInt("units_taken"),
-						rs.getInt("units_predicted"), rs.getDate("meal_time"));
+						rs.getInt("units_predicted"), rs.getDate("meal_time"), rs.getInt("meal_type"));
 			}
 			if(meal != null){
 				return addAllRecords(meal);
@@ -71,7 +75,7 @@ public class DatabaseConnector {
 			return null;
 		}
 	}
-	
+
 	public static Meal addAllRecords(Meal meal){
 		if(meal == null){
 			return null;
@@ -105,7 +109,7 @@ public class DatabaseConnector {
 			while(rs.next()){
 				meals.add(new Meal(rs.getInt("id"), rs.getInt("total_carbs"), rs.getInt("level_before"),
 						rs.getInt("level_after"), rs.getInt("units_taken"),
-						rs.getInt("units_predicted"), rs.getDate("meal_time")));
+						rs.getInt("units_predicted"), rs.getDate("meal_time"), rs.getInt("meal_type")));
 			}
 			return meals.toArray(new Meal[]{});
 		} catch (SQLException e) {
@@ -202,7 +206,7 @@ public class DatabaseConnector {
 			return false;
 		}
 	}
-	
+
 	public static boolean updateFood(int id, double carbs, double units, int score){
 		if(connection == null){
 			if(!connectDB()){
@@ -266,7 +270,7 @@ public class DatabaseConnector {
 			return null;
 		}
 	}
-	
+
 	public static Food getFoodItem(int foodId){
 		if(connection == null){
 			connectDB();
@@ -285,7 +289,7 @@ public class DatabaseConnector {
 			return null;
 		}
 	}
-	
+
 	public static double getSugarPerUnit(){
 		if(connection == null){
 			connectDB();
@@ -302,7 +306,7 @@ public class DatabaseConnector {
 			return 0.0;
 		}
 	}
-	
+
 	public static int getSugarPerUnitScore(){
 		if(connection == null){
 			connectDB();
@@ -319,7 +323,7 @@ public class DatabaseConnector {
 			return 0;
 		}
 	}
-	
+
 	public static boolean updateSugarPerUnit(double newSugarPerUnit){
 		if(connection == null){
 			if(!connectDB()){
@@ -337,7 +341,7 @@ public class DatabaseConnector {
 			return false;
 		}
 	}
-	
+
 	public static boolean updateSugarPerUnitScore(int newSugarPerUnitScore){
 		if(connection == null){
 			if(!connectDB()){
@@ -372,7 +376,7 @@ public class DatabaseConnector {
 			return 0.0;
 		}
 	}
-	
+
 	public static int getCarbsPerUnitScore(){
 		if(connection == null){
 			connectDB();
@@ -407,7 +411,7 @@ public class DatabaseConnector {
 			return false;
 		}
 	}
-	
+
 	public static boolean updateCarbsPerUnitScore(int newCarbsPerUnitScore){
 		if(connection == null){
 			if(!connectDB()){
@@ -426,4 +430,89 @@ public class DatabaseConnector {
 		}
 	}
 
+	public static double getMealCorrection(mealTypes type){
+		if(connection == null){
+			connectDB();
+		}
+		try {
+			PreparedStatement statement = null;
+			if(type == mealTypes.BREAKFAST){
+				statement = connection.prepareStatement("SELECT breakfast_correction FROM data WHERE id = 1");
+			}else if(type == mealTypes.LUNCH){
+				statement = connection.prepareStatement("SELECT lunch_correction FROM data WHERE id = 1");
+			}else if(type == mealTypes.DINNER){
+				statement = connection.prepareStatement("SELECT dinner_correction FROM data WHERE id = 1");
+			}else{
+				return 0;
+			}
+			ResultSet rs = statement.executeQuery();
+			while(rs.next()){
+				return rs.getInt(1);
+			}
+			return 0;
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return 0;
+		}
+	}
+	
+	public static boolean updateMealCorrection(mealTypes type, double newMealCorrection){
+		if(connection == null){
+			if(!connectDB()){
+				return false;
+			}
+		}
+		try {
+			PreparedStatement statement = null;
+			if(type == mealTypes.BREAKFAST){
+				statement = connection.prepareStatement("UPDATE data SET breakfast_correction = ? WHERE id = 1");
+			}else if(type == mealTypes.LUNCH){
+				statement = connection.prepareStatement("UPDATE data SET lunch_correction = ? WHERE id = 1");
+			}else if(type == mealTypes.DINNER){
+				statement = connection.prepareStatement("UPDATE data SET dinner_correction = ? WHERE id = 1");
+			}else{
+				return false;
+			}
+			statement.setDouble(1, newMealCorrection);
+			statement.executeUpdate();
+			return true;
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return false;
+		}
+	}
+
+	public static int getAverageCarbError(mealTypes type){
+		if(connection == null){
+			connectDB();
+		}
+		try {
+			PreparedStatement statement = null;
+			int ordinal = type.ordinal();
+			if(type == mealTypes.BREAKFAST){
+				statement = connection.prepareStatement("SELECT level_after FROM meals WHERE meal_type = " + ordinal +" order by created_at desc limit 100");
+			}else if(type == mealTypes.LUNCH){
+				statement = connection.prepareStatement("SELECT level_after FROM meals WHERE meal_type = " + ordinal +" order by created_at desc limit 100");
+			}else if(type == mealTypes.DINNER){
+				statement = connection.prepareStatement("SELECT level_after FROM meals WHERE meal_type = " + ordinal +" order by created_at desc limit 100");
+			}else{
+				return 0;
+			}
+			ResultSet rs = statement.executeQuery();
+			int totalError = 0;
+			int totalCount = 0;
+			while(rs.next()){
+				totalError += rs.getInt("level_after") - 110;
+				totalCount++;
+			}
+			if(totalCount > 0){
+				return totalError / totalCount;
+			} else {
+				return 0;
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return 0;
+		}
+	}
 }

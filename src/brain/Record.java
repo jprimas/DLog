@@ -121,8 +121,8 @@ public class Record implements Comparable<Record>{
 				|| quantifier.equals("bread")){
 			quantifier = "slice";
 		}
-		else if(quantifier.equals("humpfle") || quantifier.equals("humpfles")){
-			quantifier = "humpfle";
+		else if(quantifier.equals("humpfle") || quantifier.equals("humpfles") || quantifier.equals("hampfle") || quantifier.equals("hampfles")){
+			quantifier = "hampfle";
 		}
 		else if(quantifier.equals("tasse") || quantifier.equals("tasses")){
 			quantifier = "tasse";
