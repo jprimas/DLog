@@ -41,7 +41,6 @@ public class DatabaseConnector {
 			updateMeal.setInt(2, levelBefore);
 			updateMeal.setInt(3, unitsTaken);
 			updateMeal.setInt(4, unitsPredicted);
-			System.out.println("saving ordinal: " + type.ordinal());
 			updateMeal.setInt(5, type.ordinal());
 			updateMeal.executeUpdate();
 			return true;
@@ -88,7 +87,6 @@ public class DatabaseConnector {
 			statement.setInt(1, meal.getMealId());
 			ResultSet rs = statement.executeQuery();
 			while(rs.next()){
-				System.out.println(rs.getString("description"));
 				meal.addRecord(new Record(rs.getString("description"), rs.getInt("carb_count"), rs.getInt("food_id")));
 			}
 			return meal;
