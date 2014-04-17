@@ -181,11 +181,11 @@ public class Logger {
 			System.out.println("Date\t\tSug Before\tSug After\tCarb Count\tUnits Predicted\t\tUnits Taken");
 			System.out.println(rowDelimiter);
 			for(Meal meal : meals){
-				System.out.print(meal.getMealTime() + "\t");
-				System.out.print(meal.getLevelBefore() + "\t\t");
-				System.out.print(meal.getLevelAfter() + "\t\t");
-				System.out.print(meal.getTotalCarbs() + "\t\t");
-				System.out.print(meal.getUnitsPredicted() + "\t\t\t");
+				System.out.print(meal.getMealTime().getDayOfMonth() + "\t\t    ");
+				System.out.print(meal.getLevelBefore() + "\t\t   ");
+				System.out.print(meal.getLevelAfter() + "\t\t    ");
+				System.out.print(meal.getTotalCarbs() + "\t\t       ");
+				System.out.print(meal.getUnitsPredicted() + "\t\t      ");
 				System.out.print(meal.getUnitsTaken() + "\n");
 				System.out.println(rowDelimiter);
 			}
