@@ -104,7 +104,7 @@ public class Predictor {
 			double modifierPercent = getModifierPercent(totalCarbScoreFlipped, meal.getTotalCarbs(), (totalScore - record.getFood().getScore()) / totalScore, record.getCarbCount());
 			System.out.println("foodModifer: " + modifierPercent);
 			double newCarbTemp = ((newCarbCount > 0) ? newCarbCount : savedCarbCount) + extraCarbsForFood*modifierPercent;
-			food.setCarbCount(((food.getScore() * savedCarbCount) + (newCarbScore*newCarbTemp)) / (double)(food.getScore() + newCarbScore*1) / record.getAmount());
+			food.setCarbCount(((food.getScore() * savedCarbCount) + (newCarbScore*newCarbTemp)) / (double)(food.getScore() + newCarbScore*1) / record.getAmount()); //TODO: Make sure record.getAmount() != 0
 			System.out.println("Updated Carb Count: " + ((food.getScore() * savedCarbCount) + (newCarbScore*newCarbTemp)) / (double)(food.getScore() + newCarbScore*1) / record.getAmount());
 			
 			//Update Score:
@@ -138,7 +138,12 @@ public class Predictor {
 		System.out.println("disributionAmount CARBSPERUNIT: " + distributionPercent);
 		distributionPercent = (distributionPercent < 0) ? 0 : distributionPercent;
 		double extraCarbsForCarbData = excessCarbs * distributionPercent;
-		double newCarbsPerUnit = carbsPerUnit - (extraCarbsForCarbData / meal.getUnitsTaken());
+		double newCarbsPerUnit;
+		if(Math.abs(meal.getUnitsPredicted()) > 0){
+			newCarbsPerUnit = carbsPerUnit - (extraCarbsForCarbData / Math.abs(meal.getUnitsPredicted()));
+		}else{
+			newCarbsPerUnit = carbsPerUnit;
+		}
 		DatabaseConnector.updateCarbsPerUnit(Math.max(1, (carbsPerUnitScore * carbsPerUnit +  newCarbsPerUnit)/(double)(carbsPerUnitScore + 1)));
 		DatabaseConnector.updateCarbsPerUnitScore(carbsPerUnitScore + 1);
 		
@@ -148,7 +153,7 @@ public class Predictor {
 					- Math.min(meal.getTotalCarbs(),  2500) / 2500 / 2;
 			distributionPercent = (distributionPercent < 0) ? 0 : distributionPercent;
 			double extraCarbsForSugarData = excessCarbs * distributionPercent;
-			double newSugarPerUnit = sugarPerUnit - (extraCarbsForSugarData / amtBolusUnits);
+			double newSugarPerUnit = sugarPerUnit - (extraCarbsForSugarData / amtBolusUnits);//amtBolusUnits will alwasy be > 0
 			DatabaseConnector.updateSugarPerUnit(Math.max(1, (sugarPerUnitScore * sugarPerUnitScore +  newSugarPerUnit)/(double)(sugarPerUnitScore + 1)));
 			DatabaseConnector.updateSugarPerUnitScore(sugarPerUnitScore + 1);
 		}
