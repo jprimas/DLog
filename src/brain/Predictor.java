@@ -16,21 +16,16 @@ public class Predictor {
 		double totalCarbCount = 0;
 		for(Record r: this.meal.getRecords()){
 			Food f = DatabaseConnector.getFoodItem(r.getFoodId()); //return null if no item is found
-			if(f == null && r.getCarbCount() <= 0){
-				//if no prediction can be made because we dont know the carbs count and we dont have a record
-				return 999;
-			}else if(f != null && r.getAmount() >= 0 && r.getCarbCount() == 0){
+			if(f != null){
 				System.out.println("record but no input");
 				//if we have a record but input no carb count
 				totalCarbCount += Math.round(r.getAmount() * f.getCarbCount());
-			}else if(f == null && r.getCarbCount() > 0){
+			}else if(f == null && r != null && r.getAmount() > 0){
 				//no record but we input carbCount
 				totalCarbCount += r.getCarbCount();
-			}else if(f != null && r.getCarbCount() > 0){
-				//we both have a record and a new carb count
-				totalCarbCount += (r.getCarbCount() + Math.round(r.getAmount() * f.getCarbCount())) / 2;
 			}else{
-				return 999;
+				System.out.println("Prediction Failure");
+				return 0;
 			}
 		}
 		System.out.println("TotaCarbs: " + totalCarbCount);
@@ -41,7 +36,7 @@ public class Predictor {
 	}
 
 	public boolean updatePredictor(){
-		if(meal.getLevelAfter() < 0 || meal.getLevelBefore() < 0 || meal.getTotalCarbs() < 0 || meal.getRecords() == null){
+		if(meal.getLevelAfter() < 0 || meal.getLevelBefore() < 0 || meal.getRecords() == null){
 			return false;
 		}
 		System.out.println("\nUpdating Predictor...");
@@ -87,25 +82,28 @@ public class Predictor {
 		
 		//Update Food Carbs
 		double distributionPercent = (totalDistributionScore - totalScore)/totalDistributionScore/totalDistributionScoreFlipped
-				+ Math.min(meal.getTotalCarbs(),  2500) / 2500;
-		System.out.println("disributionAmount FOOD: " + distributionPercent);
+				+ Math.min(meal.getTotalCarbs(),  1500) / 1500
+				- Math.min(amtBolusUnits, 20) / 20 / 2;
 		distributionPercent = (distributionPercent > 1) ? 1 : distributionPercent;
+		distributionPercent = (distributionPercent < 0) ? 0 : distributionPercent;
+		System.out.println("disributionAmount FOOD: " + distributionPercent);
 		double extraCarbsForFood = excessCarbs * distributionPercent;
 		System.out.println("extraCarbsForFood: " + extraCarbsForFood);
 		for(int i = 0; i < meal.getRecords().length; i++){
 			Record record = meal.getRecords()[i];
 			Food food = record.getFood();
-			System.out.println("\nUpdating Food Item: " + record.getDesc());
+			System.out.println("\nUpdating Food Item: " + record.getDesc() + " with score: " + food.getScore());
 
 			double savedCarbCount = food.getCarbCount() * record.getAmount();
 			double newCarbCount = record.getCarbCount(); //is 0 if there is none
 			double newCarbScore = (mealSuccess() == sugarLevel.PERFECT) ? Math.max(5, Math.round(food.getScore() / 3)) : 1;
 
-			double modifierPercent = getModifierPercent(totalCarbScoreFlipped, meal.getTotalCarbs(), (totalScore - record.getFood().getScore()) / totalScore, record.getCarbCount());
+			double modifierPercent = getModifierPercent(totalCarbScoreFlipped, meal.getTotalCarbs(), (totalScore - food.getScore()) / (double)totalScore, ((newCarbCount > 0) ? newCarbCount : savedCarbCount));
 			System.out.println("foodModifer: " + modifierPercent);
-			double newCarbTemp = ((newCarbCount > 0) ? newCarbCount : savedCarbCount) + extraCarbsForFood*modifierPercent;
-			food.setCarbCount(((food.getScore() * savedCarbCount) + (newCarbScore*newCarbTemp)) / (double)(food.getScore() + newCarbScore*1) / record.getAmount()); //TODO: Make sure record.getAmount() != 0
-			System.out.println("Updated Carb Count: " + ((food.getScore() * savedCarbCount) + (newCarbScore*newCarbTemp)) / (double)(food.getScore() + newCarbScore*1) / record.getAmount());
+			double newCarbTemp = ((newCarbCount > 0) ? newCarbCount : savedCarbCount) + (extraCarbsForFood*modifierPercent);
+			double averagedCarbCount = ((food.getScore() * savedCarbCount) + (newCarbScore*newCarbTemp)) / (double)(food.getScore() + newCarbScore) / record.getAmount();
+			food.setCarbCount(averagedCarbCount); //TODO: Make sure record.getAmount() != 0
+			System.out.println("Updated Carb Count: " + averagedCarbCount);
 			
 			//Update Score:
 			if(mealSuccess() == sugarLevel.TOO_LOW && excessInsulin > 1){
@@ -134,9 +132,10 @@ public class Predictor {
 		System.out.println("Done with food\n\n");
 		//Update units per carb
 		distributionPercent = (totalDistributionScore - carbsPerUnitScore)/totalDistributionScore/totalDistributionScoreFlipped
-				- Math.min(meal.getTotalCarbs(),  2500) / 2500 / ((sugarPerUnitScore == 0) ? 1 : 2);
-		System.out.println("disributionAmount CARBSPERUNIT: " + distributionPercent);
+				- Math.min(meal.getTotalCarbs(),  1500) / 1500 / ((sugarPerUnitScore == 0) ? 1 : 2)
+				- Math.min(amtBolusUnits, 20) / 20 / 2;
 		distributionPercent = (distributionPercent < 0) ? 0 : distributionPercent;
+		System.out.println("disributionAmount CARBSPERUNIT: " + distributionPercent);
 		double extraCarbsForCarbData = excessCarbs * distributionPercent;
 		double newCarbsPerUnit;
 		if(Math.abs(meal.getUnitsPredicted()) > 0){
@@ -144,17 +143,24 @@ public class Predictor {
 		}else{
 			newCarbsPerUnit = carbsPerUnit;
 		}
-		DatabaseConnector.updateCarbsPerUnit(Math.max(1, (carbsPerUnitScore * carbsPerUnit +  newCarbsPerUnit)/(double)(carbsPerUnitScore + 1)));
+		double averagedCarbsPerUnit = Math.max(1, (carbsPerUnitScore * carbsPerUnit +  newCarbsPerUnit)/(double)(carbsPerUnitScore + 1));
+		DatabaseConnector.updateCarbsPerUnit(averagedCarbsPerUnit);
+		System.out.println("Updated CarbsPerUnit: " + averagedCarbsPerUnit);
 		DatabaseConnector.updateCarbsPerUnitScore(carbsPerUnitScore + 1);
 		
 		//Update sugar per unit
 		if(sugarPerUnitScore != 0){
 			distributionPercent = (totalDistributionScore - sugarPerUnitScore)/totalDistributionScore/totalDistributionScoreFlipped
-					- Math.min(meal.getTotalCarbs(),  2500) / 2500 / 2;
+					- Math.min(meal.getTotalCarbs(),  1500) / 1500 / 2
+					+ Math.min(amtBolusUnits, 20) / 20;
+			distributionPercent = (distributionPercent > 1) ? 1 : distributionPercent;
 			distributionPercent = (distributionPercent < 0) ? 0 : distributionPercent;
+			System.out.println("disributionAmount SUGARSPERUNIT: " + distributionPercent);
 			double extraCarbsForSugarData = excessCarbs * distributionPercent;
-			double newSugarPerUnit = sugarPerUnit - (extraCarbsForSugarData / amtBolusUnits);//amtBolusUnits will alwasy be > 0
-			DatabaseConnector.updateSugarPerUnit(Math.max(1, (sugarPerUnitScore * sugarPerUnitScore +  newSugarPerUnit)/(double)(sugarPerUnitScore + 1)));
+			double newSugarPerUnit = sugarPerUnit - (extraCarbsForSugarData / amtBolusUnits);//amtBolusUnits will always be > 0
+			double averagedSugarPerUnit = Math.max(1, (sugarPerUnitScore * sugarPerUnitScore +  newSugarPerUnit * amtBolusUnits)/(double)(sugarPerUnitScore + amtBolusUnits));
+			DatabaseConnector.updateSugarPerUnit(averagedSugarPerUnit);
+			System.out.println("Updated SugarsPerUnit: " + averagedSugarPerUnit);
 			DatabaseConnector.updateSugarPerUnitScore(sugarPerUnitScore + 1);
 		}
 		
@@ -201,12 +207,16 @@ public class Predictor {
 		System.out.println("newDinnerCarbCorrection  " + newDinnerCarbCorrection);
 	}
 
-	private double getModifierPercent(double totalScore, double totalCarbs, int score, double carbs){
+	private double getModifierPercent(double totalScore, double totalCarbs, double score, double carbs){
+		System.out.println("in getModifierPercent");
+		System.out.println(totalScore);
+		System.out.println(totalCarbs);
+		System.out.println(score);
+		System.out.println(carbs);
 		if(totalScore == score){
 			return 1;
 		}
 		double scorePart = score / totalScore;
-		scorePart = (scorePart == 0) ? 1 : scorePart;
 		double carbPart = carbs / totalCarbs;
 		return (2*scorePart + 1*carbPart)/3;
 	}
